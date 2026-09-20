@@ -1,0 +1,9 @@
+# Sensitive / local files
+.env
+*.pem
+*.key
+*.pcap
+*.pcapng
+*.log
+__pycache__/
+.DS_Store

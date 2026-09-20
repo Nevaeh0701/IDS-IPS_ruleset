@@ -1,0 +1,97 @@
+# 200 series - Web Application
+# Source: original project ruleset spreadsheet
+# Rules are preserved as written in the source spreadsheet.
+
+# ============================================================================
+# 로그인 평문 (1 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Login Request Contains Username and Plaintext Password"; flow:established,to_server; http_method; content:"POST"; http_uri; pcre:"/\/login\.php(?:\?|$)/i"; http_client_body; pcre:"/(?=.*(?:^|&)username=[^&]*)(?=.*(?:^|&)password=[^&]*)/ims"; sid:2000001; rev:1;)
+
+# ============================================================================
+# 로그인 실패 (3 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Login Attempt State"; flow:established,to_server; http_method; content:"POST"; http_uri:path; pcre:"/^\/login\.php$/"; bufferlen:10; flowbits:set,login.attempt; flowbits:noalert; sid:2000002; rev:2;)
+alert http $HOME_NET 80 -> $EXTERNAL_NET any (msg:"Login Failed"; flow:established,to_client; flowbits:isset,login.attempt; http_stat_code; content:"200"; flowbits:unset,login.attempt; sid:2000003; rev:2;)
+alert http $HOME_NET 80 -> $EXTERNAL_NET any (msg:"Login Success State Clear"; flow:established,to_client; flowbits:isset,login.attempt; http_stat_code; content:"302"; flowbits:unset,login.attempt; flowbits:noalert; sid:2000004; rev:1;)
+
+# ============================================================================
+# 주문 취소  요청 (1 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Cancel Order"; flow:established,to_server; http_raw_uri; content:"/order.php"; pcre:"/(?:\?|&)action=cancel(?:&|$)/i"; sid:2000005; rev:1;)
+
+# ============================================================================
+# SQL Injectiom (9 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - UNION SELECT Function";flow:established,to_server;http_uri;pcre:"/union\s+select\s+(user|database)\s*\(/i";sid:2001001;rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - UNION SELECT Password";flow:established,to_server;http_uri;pcre:"/union\s+select\s+(user|username)\s*,\s*(password|passwd|password_plain|password_hash)\s+from\s+[a-z0-9_]+/i";sid:2001002;rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - UNION SELECT Password";flow:established,to_server;http_uri;pcre:"/union\s+select\s+(password|passwd|password_plain|password_hash)\s*,\s*(user|username)\s+from\s+[a-z0-9_]+/i";sid:2001003;rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - Always True Condition";flow:established,to_server;http_uri;pcre:"/('|%27)\s*+or\s+([0-9]+|'[^']*'|\"[^\"]*\")\s*=\s*\2/i";sid:2001004;rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - Always True Condition";flow:established,to_server;http_client_body; content:"or",nocase; pcre:"/('|%27)\s*+or\s+([0-9]+|'[^']*'|\"[^\"]*\")\s*=\s*\2/i";sid:2001005;rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - SQL Comment Detected on Login"; flow:established,to_server; http_uri:path; content:"/login.php",nocase; http_client_body; pcre:"/(?:--|#|\/\*)/"; sid:2001006; rev:2;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - UNION SELECT Function";flow:established,to_server;http_client_body; content:"union",nocase; pcre:"/union\s+select\s+(user|database)\s*\(/i";sid:2001007;rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - UNION SELECT Credential Fields"; flow:established,to_server; http_uri; pcre:"/union\s+select(?=.{0,1024}\b(?:user|username)\b)(?=.{0,1024}\b(?:password|passwd|password_plain|password_hash)\b).{0,1024}\bfrom\s+(?:[a-z0-9_]+\.)?[a-z0-9_]+/is"; sid:2001008; rev:3;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"SQL Injection - Information Schema Column"; flow:established,to_server; http_uri; pcre:"/union\s+select.{0,1024}\bcolumn_name\b.{0,512}\bdata_type\b.{0,1024}\bfrom\s+information_schema\.columns\b/is"; sid:2001009; rev:3;)
+
+# ============================================================================
+# Command Injection (6 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Command Injection - Sensitive File Access"; flow:established,to_server; http_client_body; pcre:"/(cat\s+\/etc\/passwd|cat\s+\/etc\/shadow)/i"; sid:2002001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Command Injection - Reverse Shell"; flow:established,to_server; http_client_body;  pcre:"/(nc|netcat)\s+[0-9]{1,3}(\.[0-9]{1,3}){3}\s++-e\s+\/bin\/(?:ba)?sh\b/i"; sid:2002002; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Command Injection - System Information"; flow:established,to_server; http_client_body;  pcre:"/\b(whoami|id|uname|pwd)\b/i"; sid:2002003; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Command Injection - Privilege Management"; flow:established,to_server;http_client_body; pcre:"/\b(sudo|su|chmod|chown)\b/i"; sid:2002004; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:" Command Injection - Using bash -c"; flow:established,to_server; http_client_body; content:"bash",nocase; pcre:"/\x3b(\s|\+)*bash(\s|\+)+-c/i"; sid:2002005; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:" Command Injection - Reverse Shell"; flow:established,to_server; http_client_body; content:"bash",nocase; pcre:"/bash(\s|\+)+-i(\s|\+|.)*\/dev\/tcp\//i"; sid:2002006; rev:1;)
+
+# ============================================================================
+# Stored XSS (5 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"XSS(S) - Script Tag "; flow:established, to_server; http_method; content:"POST"; http_client_body; content :"<script", nocase; sid:2003001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"XSS(S) - Script Tag (raw body)"; flow:established, to_server; http_method; content:"POST"; http_raw_body; content :"%3Cscript", nocase; sid:2003002; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"XSS(S) - Img"; flow:established, to_server; http_method; content:"POST"; http_client_body; pcre:"/<img\b[^>]*\bsrc\s*=/"; sid:2003003; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"XSS(S) - Anchor URI"; flow:established, to_server; http_method; content:"POST"; http_client_body; pcre:"/<a\b[^>]*\bhref\s*=/"; sid:2003004; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Stored XSS cookie"; flow:to_server,established;http_method; content:"POST"; http_client_body; content:"document.cookie",nocase; sid:2003005; rev:1;)
+
+# ============================================================================
+# Redirect External (1 rules)
+# ============================================================================
+
+alert http $HOME_NET any -> $HTTP_SERVERS 80 ( msg:"Open Redirect External"; flow:to_server,established;  http_uri:query; pcre:"/(?:^|&)redirect=(?:https?:\/\/|\/\/|www\.)/i";  sid:2004001; rev:1;)
+
+# ============================================================================
+# File Upload (10 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - Dangerous Executable Filename Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(?:php|exe|bat|py|reg|js|sh)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - Filename Extension and Content-Type Mismatch"; flow:established,to_server; http_client_body; content:"filename",nocase; content:"Content-Type:",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(?:php[\x22\x27]?[^\r\n]*\r?\nContent-Type\s*:\s*(?!(?:application\/(?:x-php|x-httpd-php)|text\/x-php)(?:[ \t]*\x3b|[ \t]*\r?$))|exe[\x22\x27]?[^\r\n]*\r?\nContent-Type\s*:\s*(?!(?:application\/(?:vnd\.microsoft\.portable-executable|x-msdownload|octet-stream))(?:[ \t]*\x3b|[ \t]*\r?$))|(?:bat|cmd)[\x22\x27]?[^\r\n]*\r?\nContent-Type\s*:\s*(?!(?:application\/(?:x-bat|x-msdos-program|octet-stream)|text\/plain)(?:[ \t]*\x3b|[ \t]*\r?$))|reg[\x22\x27]?[^\r\n]*\r?\nContent-Type\s*:\s*(?!(?:text\/plain|application\/(?:registration|octet-stream))(?:[ \t]*\x3b|[ \t]*\r?$))|jar[\x22\x27]?[^\r\n]*\r?\nContent-Type\s*:\s*(?!(?:application\/(?:java-archive|x-java-archive|octet-stream))(?:[ \t]*\x3b|[ \t]*\r?$))|sh[\x22\x27]?[^\r\n]*\r?\nContent-Type\s*:\s*(?!(?:application\/(?:x-sh|octet-stream)|text\/(?:x-shellscript|plain))(?:[ \t]*\x3b|[ \t]*\r?$)))[^\r\n]*/im"; sid:2006002; rev:4;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"WEB ATTACK - Dangerous File Requested from Upload Directory"; flow:established,to_server; http_raw_uri:path; content:"/upload",nocase; pcre:"/\/uploads?\/[^\s?#]*\.(?:php|exe|bat|py|reg|js|sh)(?:[\/?\x3b#]|$)/i"; sid:2006003; rev:2;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - php Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(php)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006004; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - exe Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(exe)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006005; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - bat Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(bat)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006006; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - py Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(py)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006007; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - reg Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(reg)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006008; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - js Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(js)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006009; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE UPLOAD - sh Extension"; flow:established,to_server; http_client_body; content:"filename",nocase; pcre:"/\bfilename\s*=\s*[\x22\x27]?[^\x22\x27\x3b\r\n]*\.(sh)(?:[\x22\x27\x3b\s\r\n]|$)/i"; sid:2006010; rev:1;)
+
+# ============================================================================
+# Broken Access Control (1 rules)
+# ============================================================================
+
+alert http $HOME_NET 80 -> $EXTERNAL_NET any (msg:"ACCESS CONTROL - Profile User Does Not Match Buyer"; flow:established,to_client; file_data; content:"/profile.php",fast_pattern,nocase; pcre:"/href\s*=\s*[\x22\x27]\/profile\.php[\x22\x27][^>]*>[ \t\r\n]*([^<\r\n]{1,64}?)[ \t\r\n]*<\/a>.{0,4096}<p[^>]*>[ \t\r\n]*\xEA\xB5\xAC\xEB\xA7\xA4\xEC\x9E\x90[ \t]+(?!\1[ \t]*\xC2\xB7)[^<\r\n]{1,64}?[ \t]*\xC2\xB7/is"; sid:2007001; rev:2;)
+
+# ============================================================================
+# IDOR (1 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"IDOR - Order Request"; flow:established,to_server; http_uri; content:"/order.php?id="; detection_filter:track by_src,count 10,seconds 120; sid:2008001; rev:1;)
+
+# ============================================================================
+# RLO (1 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET any ( msg:"Unicode RLO filename spoofing detected";  flow:to_server,established; http_raw_body; content:"|E2 80 AE|"; sid:2009001;  rev:1;)

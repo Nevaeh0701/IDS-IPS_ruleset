@@ -1,0 +1,31 @@
+# 500 series - System / Host Attack
+# Source: original project ruleset spreadsheet
+# Rules are preserved as written in the source spreadsheet.
+
+# ============================================================================
+# Reverse Shell (3 rules)
+# ============================================================================
+
+alert tcp $HTTP_SERVER any -> $EXTERNAL_NET ![80] (msg:"WEB SHELL - Outbound TCP Connection"; flags:S; flow:stateless; sid:5001001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Bash Shell - Command Attempt"; flow:established,to_server; http_method; content:"POST"; http_uri:path; content:"/profile.php",fast_pattern; pcre:"/^\/profile\.php$/"; http_client_body; content:"bash",nocase; pcre:"/(?:\/bin\/bash\b|\bbash\s+-i\b)/i"; sid:5001002; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Bash Shell - External Connection"; flow:established,to_server; http_method; content:"POST"; http_uri:path; content:"/profile.php"; pcre:"/^\/profile\.php$/"; http_client_body; pcre:"/(?:\/dev\/tcp\/[^\s\x22\x27\x3b]{1,256}|(?:^|[\s\x3b&|(\x22\x27])(?:\/(?:usr\/)?bin\/)?(?:nc|ncat|netcat)\b\s+[^\r\n\x3b]{1,256})/i"; sid:5001003; rev:2;)
+
+# ============================================================================
+# Shell Command (1 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"WEB SHELL - Interactive Shell Command Detected in Raw TCP Data"; flow:established; raw_data; content:"|0A|"; pcre:"/(?:^|[\r\n])[\t ]*(?:ls(?:[\t ]+-[A-Za-z]+)?|pwd|id|whoami|uname(?:[\t ]+-a)?|hostname|ps(?:[\t ]+(?:aux|-ef))?|netstat(?:[\t ]+-[A-Za-z]+)?|ss(?:[\t ]+-[A-Za-z]+)?|ifconfig|ip[\t ]+(?:a|addr|route)|cat[\t ]+[^\r\n]+|cd[\t ]+[^\r\n]+|wget[\t ]+[^\r\n]+|curl[\t ]+[^\r\n]+|chmod[\t ]+[^\r\n]+|(?:nc|ncat)[\t ]+[^\r\n]+|[^|\r\n]*\/dev\/tcp\/[^\r\n]+|bash|sh)[\t ]*(?:\r?\n|$)/i"; sid:5002001; rev:1;)
+
+# ============================================================================
+# File Access (2 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"File - Sensitive File Access"; flow:established,to_server; http_uri:path; content:"/invoice.php"; http_uri:query; pcre:"/(..\/|\/etc\/passwd|\/etc\/shadow)/i"; sid:5003001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"FILE - Repeated File Access Attempt"; flow:established,to_server; http_uri; content:"/invoice.php"; detection_filter:track by_src, count 10, seconds 120; sid:5003002; rev:1;)
+
+# ============================================================================
+# sudo, su 명령 (2 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Sudo Command - chown"; flow:established,to_server;http_client_body; content:"sudo", nocase;  pcre:"/\bsudo\s+chown\b/i"; sid:5004001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"Sudo Command - chmod"; flow:established,to_server;http_client_body; content:"sudo", nocase;  pcre:"/\bsudo\s+chmod\b/i"; sid:5004002; rev:1;)

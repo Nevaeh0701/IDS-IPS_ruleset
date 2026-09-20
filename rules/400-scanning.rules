@@ -1,0 +1,82 @@
+# 400 series - Scanning / Reconnaissance
+# Source: original project ruleset spreadsheet
+# Rules are preserved as written in the source spreadsheet.
+
+# ============================================================================
+# TCP SYN (3 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"TCP SYN Scan"; flags:S; flow:stateless; detection_filter:track by_src, count 30, seconds 5; sid:4001001; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"TCP SYN Scan - RST/ACK"; flags:RA; flow:stateless; detection_filter:track by_dst, count 30, seconds 5;sid:4001002;rev:1;)
+alert tcp  $HOME_NET any -> $EXTERNAL_NET any (msg:"TCP SYN Response RST"; flags:R; detection_filter:track by_dst,count 100,seconds 1; sid:4001003; rev:1;)
+
+# ============================================================================
+# TCP Connect Scan (1 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"NMAP -sT - Repeated RST ACK"; flags:RA; flow:established, to_server; detection_filter:track by_src, count 5, seconds 60; sid:4002001; rev:1;)
+
+# ============================================================================
+# FIN Scan (1 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"NMAP -sF - Stateless FIN Scan"; flags:F; flow:stateless; detection_filter:track by_src, count 300, seconds 60; sid: 4003001; rev:1)
+
+# ============================================================================
+# TCP NULL (1 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"TCP NULL Scan"; flags:0; flow:stateless; detection_filter: track by_src, count 40, seconds 5; sid:4004001; rev:1;)
+
+# ============================================================================
+# Xmas Scan (1 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"NMAP -sX - Stateless FPU"; flags:FPU; flow:stateless; detection_filter:track by_src, count 300, seconds 60; sid:4005001; rev:1;)
+
+# ============================================================================
+# UDP Scan (3 rules)
+# ============================================================================
+
+alert udp any any -> any any (msg:"UDP multiple empty payload packets from same IP - UDP port scan suspected"; dsize:0; detection_filter:track by_src,count 10,seconds 30; sid:4006001; rev:1;)
+alert udp any any -> any any (msg:"Nmap UDP port scan fixed 40-byte payload repeated"; dsize:40; raw_data; content:"|3E EC E3 CA 00 00 00 00 00 00 00 02 00 BC 61 4E 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00|",offset 0,depth 40; detection_filter:track by_src,count 10,seconds 30; sid:4006002; rev:1;)
+alert icmp any any -> any any (msg:"Multiple ICMP destination port unreachable responses to same host - UDP scan response pattern"; itype:3; icode:3; detection_filter:track by_dst,count 10,seconds 30; sid:4006003; rev:1;)
+
+# ============================================================================
+# Version Scan (5 rules)
+# ============================================================================
+
+alert tcp any any -> any 8080 (msg:"NMAP TRINITY PROBE detected"; flow:to_server,established; http_raw_request; content:"GET /nice%20ports%2C/Tri%6Eity.txt%2ebak",nocase; sid:4007001; rev:1;)
+alert tcp any any -> any [80,8080] (msg:"NMAP nmaplowercheck service probe detected"; flow:to_server,established; http_raw_request; content:"GET /nmaplowercheck"; sid:4007002; rev:1;)
+alert tcp $HOME_NET 22 -> $EXTERNAL_NET any (msg:"OpenSSH Server Version Banner Disclosure"; flow:established,to_client; raw_data; content:"SSH-2.0-OpenSSH_"; sid:4007003; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET [80,8080] (msg:"NMAP nmaplowercheck Service Probe Detected"; flow:established,to_server; http_raw_request; content:"GET /nmaplowercheck"; sid:4007004; rev:1;)
+alert tcp $HOME_NET 3306 -> $EXTERNAL_NET any (msg:"Nmap MariaDB Service Version Scan Suspected"; flow:established,to_client; raw_data; content:"|FF 6A 04|"; sid:4007005; rev:1;)
+
+# ============================================================================
+# NSE Scan (4 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"Nmap NSE SSH Protocol Probe Detected"; flow:established,to_server; raw_data; content:"NmapNSE_1.0"; sid:4008001; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"Nmap SSH Hostkey Enumeration Probe Detected"; flow:established,to_server; raw_data; content:"Nmap-SSH"; pcre:"/^SSH-(?:2\.0-Nmap-SSH2|1\.5-Nmap-SSH1)-Hostkey\r?\n/"; sid:4008002; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET [80,8080] (msg:"WebDAV PROPFIND Reconnaissance Detected"; flow:established,to_server; http_raw_request; content:"PROPFIND /"; sid:4008003; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET [80,8080] (msg:"Git Repository Metadata Probe Detected"; flow:established,to_server; http_raw_request; content:"GET /.git/"; sid:4008004; rev:1;)
+
+# ============================================================================
+# TCP ACK/Window Scan (1 rules)
+# ============================================================================
+
+alert tcp any any -> any any (msg:"NMAP -sA/-sW suspected. Massive ACK packets occurred"; flags:A; detection_filter:track by_src,count 100,seconds 1; sid:4009001; rev:1;)
+
+# ============================================================================
+# IP Protocol Scan (1 rules)
+# ============================================================================
+
+alert ip any any -> any any (msg:"Nmap Repeated header-only IP packets from same source - Nmap IP Protocol Scan (-sO) suspected"; dsize:0; detection_filter:track by_src,count 90,seconds 30; sid:4010001; rev:1;)
+
+# ============================================================================
+# OS Fingerprinting (3 rules)
+# ============================================================================
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"TCP OS Fingerprinting SYN-FIN-PSH-URG Probe Detected"; flags:FSUP; dsize:0; sid:4011001; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"TCP OS Fingerprinting FIN-PSH-URG Probe Detected"; flags:FPU; dsize:0; sid:4011002; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"TCP OS Fingerprinting NULL Probe Suspected"; flags:0; dsize:0; window:128; sid:4011003; rev:1;)

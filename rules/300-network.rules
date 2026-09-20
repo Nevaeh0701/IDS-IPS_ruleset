@@ -1,0 +1,17 @@
+# 300 series - Network Attack
+# Source: original project ruleset spreadsheet
+# Rules are preserved as written in the source spreadsheet.
+
+# ============================================================================
+# Brute Force (1 rules)
+# ============================================================================
+
+alert http $EXTERNAL_NET any -> $HOME_NET 80 (msg:"BF - Login Attempt"; http_raw_uri; content:"/login.php"; detection_filter:track by_src, count 10, seconds 60; sid:3001001; rev:1;)
+
+# ============================================================================
+# ARP Spoofing (3 rules)
+# ============================================================================
+
+alert (msg:"ARP SPOOF Ethernet/ARP soucre MAC mismatch"; gid:112; sid:3002001; rev:1;)
+alert (msg:"ARP SPOOF Ethernet/ARP destination MAC mismatch"; gid:112; sid:3002002; rev:1;)
+alert(msg:"ARP SPOOF Attempted ARP cache overwirte"; gid:112; sid:3002003; rev:1;)
