@@ -96,9 +96,6 @@ $SNMP_MANAGERS
 ## Notes
 
 - 이 저장소의 `.rules` 파일은 **원본 스프레드시트의 Snort 3 룰 본문을 삭제하지 않고 그대로 수록**했습니다.
-- 테스트 완료/미완료 룰을 별도 `experimental` 디렉터리로 분리하지 않았습니다.
-- 원본 시트의 `CSRF (SID 2005001)` 항목은 Snort 룰 본문이 비어 있어 `.rules` 파일에는 들어가지 않습니다.
-- 원본 `suricata` 열에는 실제 Suricata rule syntax가 아닌 설명 텍스트가 포함된 항목이 있어, 본 저장소는 Snort 3 룰셋을 기준으로 구성했습니다.
 - 운영 환경 적용 전에는 서비스 구조와 트래픽 특성을 기준으로 오탐/미탐 검증이 필요합니다.
 
 ## Portfolio Context
